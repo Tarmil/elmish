@@ -128,10 +128,11 @@ module Program =
           onError = program.onError
           syncDispatch = id }
 
-    /// Start the program loop.
+    /// Perform the initial render.
     /// arg: argument to pass to the init() function.
     /// program: program created with 'mkSimple' or 'mkProgram'.
-    let runWith (arg: 'arg) (program: Program<'arg, 'model, 'msg, 'view>) =
+    /// returns: a function that starts the program loop.
+    let runInitialRender (arg: 'arg) (program: Program<'arg, 'model, 'msg, 'view>) =
         let (model,cmd) = program.init arg
         let rb = RingBuffer 10
         let mutable reentered = false
@@ -156,14 +157,22 @@ module Program =
         and syncDispatch = program.syncDispatch dispatch            
 
         program.setState model syncDispatch
-        let sub = 
-            try 
-                program.subscribe model 
-            with ex ->
-                program.onError ("Unable to subscribe:", ex)
-                Cmd.none
-        Cmd.batch [sub; cmd]
-        |> Cmd.exec (fun ex -> program.onError ("Error intitializing:", ex)) syncDispatch
+
+        fun () ->
+            let sub =
+                try
+                    program.subscribe model
+                with ex ->
+                    program.onError ("Unable to subscribe:", ex)
+                    Cmd.none
+            Cmd.batch [sub; cmd]
+            |> Cmd.exec (fun ex -> program.onError ("Error intitializing:", ex)) syncDispatch
+
+    /// Start the program loop.
+    /// arg: argument to pass to the init() function.
+    /// program: program created with 'mkSimple' or 'mkProgram'.
+    let runWith (arg: 'arg) (program: Program<'arg, 'model, 'msg, 'view>) =
+        runInitialRender arg program ()
 
     /// Start the dispatch loop with `unit` for the init() function.
     let run (program: Program<unit, 'model, 'msg, 'view>) = runWith () program
